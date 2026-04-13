@@ -8,7 +8,8 @@
  *   1. Verifies Python >= 3.9.0 is available
  *   2. Creates a .venv if one doesn't exist
  *   3. Installs optimum-onnx[onnxruntime] into the venv
- *   4. Runs optimum-cli to export and quantize the model
+ *   4. Runs data/export-onnx-model.py (optimum-cli + torch.rms_norm shim) to export
+ *      and optimum-cli to quantize
  *
  * Run: bun run download:model
  */
@@ -20,12 +21,14 @@ import {
   PROJECT_ROOT,
 } from "./lib/python-env"
 
+const DATA_DIR = join(PROJECT_ROOT, "data")
 const MODELS_DIR = join(PROJECT_ROOT, "models", "qwen3-embedding-0.6b")
 const MODELS_DIR_INT8 = join(
   PROJECT_ROOT,
   "models",
   "qwen3-embedding-0.6b-int8"
 )
+const EXPORT_ONNX_SCRIPT = join(DATA_DIR, "export-onnx-model.py")
 
 async function main() {
   // --- Phase 1: Python environment setup ---
@@ -33,10 +36,15 @@ async function main() {
     "optimum-onnx[onnxruntime]",
     "sentence-transformers",
     "accelerate",
+    "numpy>=1.26,<2",
+    "torch",
   ])
 
   // --- Phase 2: Export model ---
   const optimumCli = getVenvBin("optimum-cli")
+  const venvPython = getVenvBin(
+    process.platform === "win32" ? "python" : "python3"
+  )
 
   console.log(
     "\n🧠 Exporting Qwen3-Embedding-0.6B to ONNX (feature-extraction)...\n"
@@ -51,7 +59,8 @@ async function main() {
 
   const proc = Bun.spawn(
     [
-      optimumCli,
+      venvPython,
+      EXPORT_ONNX_SCRIPT,
       "export",
       "onnx",
       "--model",

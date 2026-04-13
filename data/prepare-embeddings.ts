@@ -24,6 +24,7 @@ import {
   getVenvBin,
   PROJECT_ROOT,
 } from "./lib/python-env"
+import { exec } from "node:child_process"
 
 // ── Paths ────────────────────────────────────────────────────────────
 const DATA_DIR = join(PROJECT_ROOT, "data")
@@ -43,6 +44,7 @@ const IDS_BIN = join(PROJECT_ROOT, "embeddings", "kjv-qwen3-0.6b-ids.bin")
 const WHISPER_MODEL = join(PROJECT_ROOT, "models", "whisper", "ggml-large-v3-turbo-q8_0.bin")
 const MODEL_ONNX = join(MODELS_DIR, "model.onnx")
 const MODEL_INT8 = join(MODELS_DIR_INT8, "model_quantized.onnx")
+const EXPORT_ONNX_SCRIPT = join(DATA_DIR, "export-onnx-model.py")
 
 const force = process.argv.includes("--force")
 
@@ -80,6 +82,9 @@ async function main() {
   console.log("╚══════════════════════════════════════════════╝")
   if (force) console.log("  (--force: re-running all phases)\n")
 
+  if (process.platform === "darwin") {
+    exec(`export SSL_CERT_FILE="$(.venv/bin/python -c 'import certifi; print(certifi.where())')"`)
+  }
   // ── Phase 1: Python environment ────────────────────────────────
   console.log("\n━━━ Phase 1/8: Python environment ━━━")
   await ensurePythonEnv([
@@ -87,7 +92,7 @@ async function main() {
     "sentence-transformers",
     "accelerate",
     "tokenizers",
-    "numpy",
+    "numpy>=1.26,<2",
     "torch",
     "meaningless",
   ])
@@ -121,15 +126,19 @@ async function main() {
   console.log("\n━━━ Phase 5/8: ONNX model download & quantize ━━━")
   if (!shouldSkip("ONNX models", MODEL_ONNX, MODEL_INT8)) {
     const optimumCli = getVenvBin("optimum-cli")
+    const venvPython = getVenvBin(
+      process.platform === "win32" ? "python" : "python3"
+    )
 
-    // Export FP32
+    // Export FP32 (wrapper applies torch.rms_norm polyfill for PyTorch < 2.4)
     if (force || !existsSync(MODEL_ONNX)) {
       console.log(
         "\n  🧠 Exporting Qwen3-Embedding-0.6B to ONNX (feature-extraction)..."
       )
       console.log("     This may take a few minutes on first run.\n")
       await run([
-        optimumCli,
+        venvPython,
+        EXPORT_ONNX_SCRIPT,
         "export",
         "onnx",
         "--model",

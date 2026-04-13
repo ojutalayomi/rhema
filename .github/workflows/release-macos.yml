@@ -1,0 +1,62 @@
+# Build Rhema (Tauri) for macOS arm64 + x86_64 and publish assets to the GitHub Release
+# for the pushed tag (e.g. v0.2.0). Tag is the source of truth; versions are synced in CI.
+
+name: Release (macOS)
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - args: "--target aarch64-apple-darwin"
+          - args: "--target x86_64-apple-darwin"
+
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Sync version from tag
+        run: bun run scripts/set-version-from-tag.ts --tag "${{ github.ref_name }}"
+
+      - name: Build and upload to GitHub Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Rhema ${{ github.ref_name }}
+          releaseBody: |
+            See the assets below to download this version.
+
+            **Note:** macOS builds are currently **unsigned**. Gatekeeper may show a warning on first open.
+          tauriScript: bun run tauri build
+          args: ${{ matrix.args }}
