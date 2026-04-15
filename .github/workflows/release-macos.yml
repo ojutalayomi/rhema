@@ -20,9 +20,13 @@ jobs:
           - platform: macos-latest
             target: aarch64-apple-darwin
             args: "--target aarch64-apple-darwin"
+            # Apple Silicon requires macOS 11.0+; std::filesystem (used by
+            # whisper.cpp) is unavailable below 10.15, so 11.0 is the right floor.
+            macos_deployment_target: "11.0"
           - platform: macos-15-intel
             target: x86_64-apple-darwin
             args: "--target x86_64-apple-darwin"
+            macos_deployment_target: "10.15"
 
     runs-on: ${{ matrix.platform }}
 
@@ -68,6 +72,9 @@ jobs:
 
       - name: Show installed Rust targets
         run: rustup target list --installed
+
+      - name: Set macOS deployment target
+        run: echo "MACOSX_DEPLOYMENT_TARGET=${{ matrix.macos_deployment_target }}" >> $GITHUB_ENV
 
       - name: Build ONNX Runtime for Intel macOS
         if: matrix.target == 'x86_64-apple-darwin' && steps.ort-cache.outputs.cache-hit != 'true'
