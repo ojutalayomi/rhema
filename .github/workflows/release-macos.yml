@@ -58,5 +58,5 @@ jobs:
             See the assets below to download this version.
 
             **Note:** macOS builds are currently **unsigned**. Gatekeeper may show a warning on first open.
-          tauriScript: bun run tauri build
+          tauriScript: bun run tauri
           args: ${{ matrix.args }}
