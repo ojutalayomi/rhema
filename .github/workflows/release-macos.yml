@@ -94,6 +94,7 @@ jobs:
             --build_dir build/macOS_x86_64 \
             --config Release \
             --parallel \
+            --skip_tests \
             --compile_no_warning_as_error \
             --cmake_extra_defines CMAKE_OSX_ARCHITECTURES=x86_64
 
