@@ -76,6 +76,16 @@ jobs:
       - name: Set macOS deployment target
         run: echo "MACOSX_DEPLOYMENT_TARGET=${{ matrix.macos_deployment_target }}" >> $GITHUB_ENV
 
+      - name: Force deployment target in Cargo config (overrides Cargo's automatic value)
+        # Cargo overrides MACOSX_DEPLOYMENT_TARGET for build scripts from the Rust target
+        # spec, so $GITHUB_ENV alone is insufficient. The [env] table with force=true in
+        # .cargo/config.toml takes precedence and is seen by all build scripts (e.g.
+        # whisper-rs-sys's cmake invocation), ensuring std::filesystem is available.
+        run: |
+          mkdir -p src-tauri/.cargo
+          printf '[env]\nMACOSX_DEPLOYMENT_TARGET = { value = "%s", force = true }\n' \
+            "${{ matrix.macos_deployment_target }}" >> src-tauri/.cargo/config.toml
+
       - name: Build ONNX Runtime for Intel macOS
         if: matrix.target == 'x86_64-apple-darwin' && steps.ort-cache.outputs.cache-hit != 'true'
         working-directory: onnxruntime
