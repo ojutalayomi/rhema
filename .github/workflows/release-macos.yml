@@ -41,8 +41,16 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Checkout ONNX Runtime sources
+      - name: Restore ONNX Runtime cache (Intel)
         if: matrix.target == 'x86_64-apple-darwin'
+        id: ort-cache
+        uses: actions/cache@v4
+        with:
+          path: onnxruntime/build/macOS_x86_64/Release
+          key: onnxruntime-macos-x86_64-v1.24.2
+
+      - name: Checkout ONNX Runtime sources
+        if: matrix.target == 'x86_64-apple-darwin' && steps.ort-cache.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
         with:
           repository: microsoft/onnxruntime
@@ -62,7 +70,7 @@ jobs:
         run: rustup target list --installed
 
       - name: Build ONNX Runtime for Intel macOS
-        if: matrix.target == 'x86_64-apple-darwin'
+        if: matrix.target == 'x86_64-apple-darwin' && steps.ort-cache.outputs.cache-hit != 'true'
         working-directory: onnxruntime
         run: |
           python3 tools/ci_build/build.py \
@@ -80,6 +88,15 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> target"
+
+      - name: Download rhema.db data release
+        run: |
+          gh release download data-v1 \
+            --repo ojutalayomi/rhema \
+            --pattern "rhema.db" \
+            --output data/rhema.db
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
         run: bun install
