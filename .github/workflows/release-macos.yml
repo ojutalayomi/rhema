@@ -17,8 +17,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - args: "--target aarch64-apple-darwin"
-          - args: "--target x86_64-apple-darwin"
+          - target: aarch64-apple-darwin
+            args: "--target aarch64-apple-darwin"
+          - target: x86_64-apple-darwin
+            args: "--target x86_64-apple-darwin"
 
     runs-on: macos-latest
 
@@ -35,6 +37,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Ensure matrix Rust target is installed
+        run: rustup target add "${{ matrix.target }}"
+
+      - name: Show installed Rust targets
+        run: rustup target list --installed
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
