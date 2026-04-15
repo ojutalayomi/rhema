@@ -20,7 +20,7 @@ jobs:
           - platform: macos-latest
             target: aarch64-apple-darwin
             args: "--target aarch64-apple-darwin"
-          - platform: macos-latest
+          - platform: macos-15-intel
             target: x86_64-apple-darwin
             args: "--target x86_64-apple-darwin"
 
@@ -35,6 +35,21 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Setup Python for Intel ONNX Runtime build
+        if: matrix.target == 'x86_64-apple-darwin'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Checkout ONNX Runtime sources
+        if: matrix.target == 'x86_64-apple-darwin'
+        uses: actions/checkout@v4
+        with:
+          repository: microsoft/onnxruntime
+          ref: v1.24.2
+          path: onnxruntime
+          submodules: recursive
+
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -45,6 +60,16 @@ jobs:
 
       - name: Show installed Rust targets
         run: rustup target list --installed
+
+      - name: Build ONNX Runtime for Intel macOS
+        if: matrix.target == 'x86_64-apple-darwin'
+        working-directory: onnxruntime
+        run: |
+          python3 tools/ci_build/build.py \
+            --build_dir build/macOS_x86_64 \
+            --config Release \
+            --parallel \
+            --cmake_extra_defines CMAKE_OSX_ARCHITECTURES=x86_64
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -61,6 +86,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ORT_LIB_PATH: ${{ matrix.target == 'x86_64-apple-darwin' && format('{0}/onnxruntime/build/macOS_x86_64/Release', github.workspace) || '' }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Rhema ${{ github.ref_name }}
