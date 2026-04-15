@@ -17,12 +17,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: aarch64-apple-darwin
+          - platform: macos-latest
+            target: aarch64-apple-darwin
             args: "--target aarch64-apple-darwin"
-          - target: x86_64-apple-darwin
+          - platform: macos-13
+            target: x86_64-apple-darwin
             args: "--target x86_64-apple-darwin"
 
-    runs-on: macos-latest
+    runs-on: ${{ matrix.platform }}
 
     steps:
       - name: Checkout
@@ -36,7 +38,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: ${{ matrix.target }}
 
       - name: Ensure matrix Rust target is installed
         run: rustup target add "${{ matrix.target }}"
