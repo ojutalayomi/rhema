@@ -96,7 +96,7 @@ jobs:
             --parallel \
             --skip_tests \
             --compile_no_warning_as_error \
-            --cmake_extra_defines CMAKE_OSX_ARCHITECTURES=x86_64
+            --cmake_extra_defines CMAKE_OSX_ARCHITECTURES=x86_64 onnxruntime_BUILD_UNIT_TESTS=OFF
 
       - name: Export ORT_LIB_PATH for Intel build
         if: matrix.target == 'x86_64-apple-darwin'
