@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, type ReactElement } from "react"
 import { Joyride, STATUS, type EventData } from "react-joyride"
 import { toast } from "sonner"
 import { useSettingsStore } from "@/stores/settings-store"
@@ -10,6 +10,8 @@ import {
 import { TUTORIAL_STEPS } from "./tutorial-steps"
 import { TutorialTooltip } from "./tutorial-tooltip"
 import { useTheme } from "@/components/theme-provider"
+
+const JoyrideComponent = Joyride as unknown as (props: any) => ReactElement | null
 
 export function TutorialOverlay() {
   const [isHydrated, setIsHydrated] = useState(false)
@@ -68,7 +70,7 @@ export function TutorialOverlay() {
   if (!isHydrated) return null
 
   return (
-    <Joyride
+    <JoyrideComponent
       steps={steps}
       run={isRunning}
       continuous
