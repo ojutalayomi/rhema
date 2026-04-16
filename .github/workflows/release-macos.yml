@@ -100,7 +100,9 @@ jobs:
 
       - name: Export ORT_LIB_PATH for Intel build
         if: matrix.target == 'x86_64-apple-darwin'
-        run: echo "ORT_LIB_PATH=${{ github.workspace }}/onnxruntime/build/macOS_x86_64/Release" >> $GITHUB_ENV
+        run: |
+          echo "ORT_LIB_PATH=${{ github.workspace }}/onnxruntime/build/macOS_x86_64/Release" >> $GITHUB_ENV
+          echo "ORT_PREFER_DYNAMIC_LINK=1" >> $GITHUB_ENV
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
