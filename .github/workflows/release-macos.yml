@@ -51,7 +51,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: onnxruntime/build/macOS_x86_64/Release
-          key: onnxruntime-macos-x86_64-v1.24.2
+          key: onnxruntime-macos-x86_64-v1.24.2-shared
 
       - name: Checkout ONNX Runtime sources
         if: matrix.target == 'x86_64-apple-darwin' && steps.ort-cache.outputs.cache-hit != 'true'
@@ -96,13 +96,31 @@ jobs:
             --parallel \
             --skip_tests \
             --compile_no_warning_as_error \
+            --build_shared_lib \
             --cmake_extra_defines CMAKE_OSX_ARCHITECTURES=x86_64 onnxruntime_BUILD_UNIT_TESTS=OFF
+
+      - name: Fix ONNX Runtime dylib install name for bundling
+        if: matrix.target == 'x86_64-apple-darwin'
+        run: |
+          DYLIB="${{ github.workspace }}/onnxruntime/build/macOS_x86_64/Release/libonnxruntime.dylib"
+          if [ -f "$DYLIB" ]; then
+            install_name_tool -id @rpath/libonnxruntime.dylib "$DYLIB"
+          fi
 
       - name: Export ORT_LIB_PATH for Intel build
         if: matrix.target == 'x86_64-apple-darwin'
         run: |
           echo "ORT_LIB_PATH=${{ github.workspace }}/onnxruntime/build/macOS_x86_64/Release" >> $GITHUB_ENV
           echo "ORT_PREFER_DYNAMIC_LINK=1" >> $GITHUB_ENV
+
+      - name: Patch tauri.conf.json to bundle libonnxruntime.dylib (Intel only)
+        if: matrix.target == 'x86_64-apple-darwin'
+        run: |
+          DYLIB="${{ github.workspace }}/onnxruntime/build/macOS_x86_64/Release/libonnxruntime.dylib"
+          jq --arg dylib "$DYLIB" \
+            '.bundle.macOS.frameworks = (.bundle.macOS.frameworks // []) + [$dylib]' \
+            src-tauri/tauri.conf.json > /tmp/tauri.conf.json.tmp
+          mv /tmp/tauri.conf.json.tmp src-tauri/tauri.conf.json
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
