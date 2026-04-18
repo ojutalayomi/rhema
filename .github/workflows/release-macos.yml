@@ -19,13 +19,13 @@ jobs:
         include:
           - platform: macos-latest
             target: aarch64-apple-darwin
-            args: "--target aarch64-apple-darwin"
+            args: "--target aarch64-apple-darwin --features onnx"
             # Apple Silicon requires macOS 11.0+; std::filesystem (used by
             # whisper.cpp) is unavailable below 10.15, so 11.0 is the right floor.
             macos_deployment_target: "11.0"
           - platform: macos-15-intel
             target: x86_64-apple-darwin
-            args: "--target x86_64-apple-darwin"
+            args: "--target x86_64-apple-darwin --features onnx"
             macos_deployment_target: "10.15"
 
     runs-on: ${{ matrix.platform }}

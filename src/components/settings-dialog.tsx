@@ -900,13 +900,13 @@ export function SettingsDialog() {
           <SettingsIcon className="size-3.5" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="overflow-hidden p-0 md:max-h-[600px] md:max-w-[800px] lg:max-w-[900px]">
+      <DialogContent className="flex max-h-[min(600px,90dvh)] w-full max-w-[calc(100%-2rem)] flex-col overflow-hidden p-0 sm:max-w-[700px] md:max-h-[600px] md:max-w-[800px] md:flex-row lg:max-w-[900px]">
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">
           Configure audio, display mode, and API keys.
         </DialogDescription>
-        <SidebarProvider className="items-start">
-          <Sidebar collapsible="none" className="hidden md:flex">
+        <SidebarProvider className="min-h-0 min-w-0 flex-1 flex-row items-stretch">
+          <Sidebar collapsible="none" className="hidden shrink-0 md:flex">
             <div className="h-14 border-b border-border border-r px-4 flex items-center" >
               Settings
             </div>
@@ -930,7 +930,7 @@ export function SettingsDialog() {
               </SidebarGroup>
             </SidebarContent>
           </Sidebar>
-          <main className="flex h-[580px] flex-1 flex-col overflow-hidden">
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden md:h-[580px] md:max-h-[min(580px,90dvh)]">
             <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border">
               <div className="flex items-center gap-2 px-4">
                 {sectionTitles[activeSection]}

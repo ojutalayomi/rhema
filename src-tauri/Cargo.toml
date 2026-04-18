@@ -56,7 +56,7 @@ rhema-audio = { path = "crates/audio" }
 rhema-bible = { path = "crates/bible" }
 rhema-stt = { path = "crates/stt" }
 rhema-broadcast = { path = "crates/broadcast" }
-rhema-detection = { path = "crates/detection", features = ["onnx", "vector-search"] }
+rhema-detection = { path = "crates/detection", features = ["vector-search"] }
 rhema-api = { path = "crates/api" }
 crossbeam-channel = "0.5"
 dotenvy = "0.15"
@@ -67,6 +67,7 @@ tauri-plugin-fs = "2"
 [features]
 default = ["whisper"]
 whisper = ["rhema-stt/whisper"]
+onnx = ["rhema-detection/onnx"]
 
 [lints]
 workspace = true

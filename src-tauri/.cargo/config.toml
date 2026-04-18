@@ -1,0 +1,6 @@
+# whisper.cpp (ggml) uses std::filesystem, which libc++ marks unavailable before macOS 10.15.
+# Cargo’s default for some Apple targets is 10.13; without `force`, build scripts (e.g.
+# whisper-rs-sys cmake) still see the old minimum and compilation fails.
+# See .github/workflows/release-macos.yml — same fix as CI.
+[env]
+MACOSX_DEPLOYMENT_TARGET = { value = "10.15", force = true }

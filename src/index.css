@@ -153,11 +153,17 @@
   * {
     @apply border-border outline-ring/50;
     }
-  body {
-    @apply bg-background text-foreground;
-    }
+  /* Paint the full viewport in WKWebView (Tauri): fixed children don't give #root
+     height, and without an explicit canvas background modals/overlays can show as
+     transparent compared to Chrome. */
   html {
-    @apply font-sans;
+    @apply min-h-full bg-background font-sans text-foreground;
+    }
+  body {
+    @apply min-h-full bg-background text-foreground;
+    }
+  #root {
+    @apply min-h-dvh bg-background;
     }
 }
 
