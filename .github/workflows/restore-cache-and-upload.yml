@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to build ONNX Runtime for (e.g. v0.1.15)'
-        required: true
-        default: 'v0.1.15'
+        description: 'Tag to build (unused, kept for parity)'
+        required: false
+        default: ''
       ort_version:
         description: 'ONNX Runtime version to checkout (e.g. v1.24.2)'
         required: true
@@ -42,7 +42,7 @@ jobs:
           path: onnxruntime/build/macOS_x86_64/Release
           key: onnxruntime-macos-x86_64-v1.24.2-shared
 
-      - name: Checkout ONNX Runtime sources (if cache miss)
+      - name: Checkout ONNX Runtime sources (cache miss)
         if: steps.ort-cache.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
         with:
@@ -51,13 +51,13 @@ jobs:
           path: onnxruntime
           submodules: recursive
 
-      - name: Install Homebrew deps
+      - name: Install Homebrew deps (cache miss)
         if: steps.ort-cache.outputs.cache-hit != 'true'
         run: |
           brew update
           brew install cmake ninja python@3.11 pkg-config openssl zstd
 
-      - name: Build ONNX Runtime (Intel macOS) (if cache miss)
+      - name: Build ONNX Runtime (Intel macOS) (cache miss)
         if: steps.ort-cache.outputs.cache-hit != 'true'
         working-directory: onnxruntime
         run: |
@@ -70,7 +70,7 @@ jobs:
             --build_shared_lib \
             --cmake_extra_defines CMAKE_OSX_ARCHITECTURES=x86_64 onnxruntime_BUILD_UNIT_TESTS=OFF
 
-      - name: Fix ONNX Runtime dylib install name
+      - name: Fix ONNX Runtime dylib install name (only when built now)
         if: steps.ort-cache.outputs.cache-hit != 'true'
         run: |
           DYLIB="${{ github.workspace }}/onnxruntime/build/macOS_x86_64/Release/libonnxruntime.dylib"
@@ -78,31 +78,32 @@ jobs:
             install_name_tool -id @rpath/libonnxruntime.dylib "$DYLIB"
           fi
 
-      - name: Ensure build dir exists (either from cache or build)
+      - name: Ensure build dir exists (debug)
         run: |
           echo "cache-hit=${{ steps.ort-cache.outputs.cache-hit }}"
           ls -la ${BUILD_DIR} || true
 
       - name: Archive build output
-        if: steps.ort-cache.outputs.cache-hit == 'true' || (steps.ort-cache.outputs.cache-hit != 'true' && -d "${{ env.BUILD_DIR }}")
         run: |
           mkdir -p artifacts
-          zip -r artifacts/${ARCHIVE_NAME} ${BUILD_DIR}
+          zip -r artifacts/${ARCHIVE_NAME} ${BUILD_DIR} || true
 
       - name: Upload artifact for run
-        if: steps.ort-cache.outputs.cache-hit == 'true' || (steps.ort-cache.outputs.cache-hit != 'true' && -f "artifacts/${ARCHIVE_NAME}")
         uses: actions/upload-artifact@v4
         with:
           name: ${ARCHIVE_NAME}
           path: artifacts/${ARCHIVE_NAME}
 
       - name: Create/find release and upload asset
-        if: steps.ort-cache.outputs.cache-hit == 'true' || (steps.ort-cache.outputs.cache-hit != 'true' && -f "artifacts/${ARCHIVE_NAME}")
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RELEASE_TAG="${{ github.event.inputs.release_tag }}"
           ASSET="artifacts/${ARCHIVE_NAME}"
+          if [ ! -f "$ASSET" ]; then
+            echo "No asset found at $ASSET; aborting release upload."
+            exit 0
+          fi
           if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" -t "$RELEASE_TAG" -n "ONNX Runtime macOS builds" --repo "$GITHUB_REPOSITORY"
           fi
