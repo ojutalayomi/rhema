@@ -1,0 +1,112 @@
+name: Restore ONNX Runtime cache and upload
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to create/upload releases
+  actions: read
+
+jobs:
+  restore-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Restore ONNX Runtime cache
+        uses: actions/cache@v4
+        id: restore_cache
+        with:
+          path: onnxruntime/build/macOS_x86_64/Release
+          key: onnxruntime-macos-x86_64-v1.24.2-shared
+
+      - name: Show restored files (if any)
+        run: |
+          echo "Cache hit: ${{ steps.restore_cache.outputs.cache-hit }}"
+          ls -la onnxruntime/build/macOS_x86_64/Release || true
+
+      - name: Archive restored build
+        if: steps.restore_cache.outputs.cache-hit == 'true'
+        run: |
+          mkdir -p artifacts
+          zip -r artifacts/onnxruntime-macos-x86_64-v1.24.2-shared.zip onnxruntime/build/macOS_x86_64/Release
+
+      - name: Upload artifact (for easy download)
+        if: steps.restore_cache.outputs.cache-hit == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: onnxruntime-macos-x86_64-v1.24.2-shared
+          path: artifacts/onnxruntime-macos-x86_64-v1.24.2-shared.zip
+
+      - name: Create (or find) Release and upload asset
+        if: steps.restore_cache.outputs.cache-hit == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="deps-onxruntime"
+          ASSET="artifacts/onnxruntime-macos-x86_64-v1.24.2-shared.zip"
+          # create release if not exists (idempotent)
+          release_id=$(gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json id --jq '.id' 2>/dev/null || true)
+          if [ -z "$release_id" ]; then
+            gh release create "$TAG_NAME" -t "$TAG_NAME" -n "Built ONNX Runtime deps" --repo "$GITHUB_REPOSITORY"
+            release_id=$(gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json id --jq '.id')
+          fi
+          # upload asset (overwrites by creating duplicate name if already present)
+          gh release upload "$TAG_NAME" "$ASSET" --repo "$GITHUB_REPOSITORY" --clobber
+name: Restore ONNX Runtime cache and upload
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to create/upload releases
+  actions: read
+
+jobs:
+  restore-and-upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Restore ONNX Runtime cache
+        uses: actions/cache@v4
+        id: restore_cache
+        with:
+          path: onnxruntime/build/macOS_x86_64/Release
+          key: onnxruntime-macos-x86_64-v1.24.2-shared
+
+      - name: Show restored files (if any)
+        run: |
+          echo "Cache hit: ${{ steps.restore_cache.outputs.cache-hit }}"
+          ls -la onnxruntime/build/macOS_x86_64/Release || true
+
+      - name: Archive restored build
+        if: steps.restore_cache.outputs.cache-hit == 'true'
+        run: |
+          mkdir -p artifacts
+          zip -r artifacts/onnxruntime-macos-x86_64-v1.24.2-shared.zip onnxruntime/build/macOS_x86_64/Release
+
+      - name: Upload artifact (for easy download)
+        if: steps.restore_cache.outputs.cache-hit == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: onnxruntime-macos-x86_64-v1.24.2-shared
+          path: artifacts/onnxruntime-macos-x86_64-v1.24.2-shared.zip
+
+      - name: Create (or find) Release and upload asset
+        if: steps.restore_cache.outputs.cache-hit == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="deps-onxruntime"
+          ASSET="artifacts/onnxruntime-macos-x86_64-v1.24.2-shared.zip"
+          # create release if not exists (idempotent)
+          release_id=$(gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json id --jq '.id' 2>/dev/null || true)
+          if [ -z "$release_id" ]; then
+            gh release create "$TAG_NAME" -t "$TAG_NAME" -n "Built ONNX Runtime deps" --repo "$GITHUB_REPOSITORY"
+            release_id=$(gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json id --jq '.id')
+          fi
+          # upload asset (overwrites by creating duplicate name if already present)
+          gh release upload "$TAG_NAME" "$ASSET" --repo "$GITHUB_REPOSITORY" --clobber
