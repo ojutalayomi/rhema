@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   restore-and-upload:
-    runs-on: ubuntu-latest
+    runs-on: macos-15-intel
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
