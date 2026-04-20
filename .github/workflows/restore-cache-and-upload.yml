@@ -55,7 +55,9 @@ jobs:
         if: steps.ort-cache.outputs.cache-hit != 'true'
         run: |
           brew update
-          brew install cmake ninja python@3.11 pkg-config openssl zstd
+          brew install cmake ninja pkg-config openssl zstd
+          # Use the system Python or try installing python without version lock
+          brew install python3
 
       - name: Build ONNX Runtime (Intel macOS) (cache miss)
         if: steps.ort-cache.outputs.cache-hit != 'true'
