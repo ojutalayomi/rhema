@@ -81,10 +81,17 @@ jobs:
         # spec, so $GITHUB_ENV alone is insufficient. The [env] table with force=true in
         # .cargo/config.toml takes precedence and is seen by all build scripts (e.g.
         # whisper-rs-sys's cmake invocation), ensuring std::filesystem is available.
+        # Patch the committed src-tauri/.cargo/config.toml in place — do not append a second
+        # [env] table (invalid TOML: duplicate key).
         run: |
           mkdir -p src-tauri/.cargo
-          printf '[env]\nMACOSX_DEPLOYMENT_TARGET = { value = "%s", force = true }\n' \
-            "${{ matrix.macos_deployment_target }}" >> src-tauri/.cargo/config.toml
+          CFG="src-tauri/.cargo/config.toml"
+          TARGET="${{ matrix.macos_deployment_target }}"
+          if [ -f "$CFG" ] && grep -q '^MACOSX_DEPLOYMENT_TARGET' "$CFG"; then
+            sed -i '' "s/^MACOSX_DEPLOYMENT_TARGET = .*/MACOSX_DEPLOYMENT_TARGET = { value = \"${TARGET}\", force = true }/" "$CFG"
+          else
+            printf '[env]\nMACOSX_DEPLOYMENT_TARGET = { value = "%s", force = true }\n' "$TARGET" > "$CFG"
+          fi
 
       - name: Build ONNX Runtime for Intel macOS
         if: matrix.target == 'x86_64-apple-darwin' && steps.ort-cache.outputs.cache-hit != 'true'
