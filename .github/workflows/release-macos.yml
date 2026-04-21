@@ -45,22 +45,18 @@ jobs:
         with:
           python-version: "3.x"
 
-      - name: Restore ONNX Runtime cache (Intel)
+      - name: Download prebuilt ONNX Runtime (Intel) from release asset
         if: matrix.target == 'x86_64-apple-darwin'
-        id: ort-cache
-        uses: actions/cache@v4
-        with:
-          path: onnxruntime/build/macOS_x86_64/Release
-          key: onnxruntime-macos-x86_64-v1.24.2-shared
-
-      - name: Checkout ONNX Runtime sources
-        if: matrix.target == 'x86_64-apple-darwin' && steps.ort-cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@v4
-        with:
-          repository: microsoft/onnxruntime
-          ref: v1.24.2
-          path: onnxruntime
-          submodules: recursive
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # This asset is produced by .github/workflows/restore-cache-and-upload.yml
+          # and contains onnxruntime/build/macOS_x86_64/Release/...
+          gh release download deps-onnxruntime \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern "onnxruntime-macos-x86_64-v1.24.2-shared.zip" \
+            --output /tmp/onnxruntime-macos-x86_64-v1.24.2-shared.zip
+          unzip -o /tmp/onnxruntime-macos-x86_64-v1.24.2-shared.zip -d "${GITHUB_WORKSPACE}"
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -92,19 +88,6 @@ jobs:
           else
             printf '[env]\nMACOSX_DEPLOYMENT_TARGET = { value = "%s", force = true }\n' "$TARGET" > "$CFG"
           fi
-
-      - name: Build ONNX Runtime for Intel macOS
-        if: matrix.target == 'x86_64-apple-darwin' && steps.ort-cache.outputs.cache-hit != 'true'
-        working-directory: onnxruntime
-        run: |
-          python3 tools/ci_build/build.py \
-            --build_dir build/macOS_x86_64 \
-            --config Release \
-            --parallel \
-            --skip_tests \
-            --compile_no_warning_as_error \
-            --build_shared_lib \
-            --cmake_extra_defines CMAKE_OSX_ARCHITECTURES=x86_64 onnxruntime_BUILD_UNIT_TESTS=OFF
 
       - name: Fix ONNX Runtime dylib install name for bundling
         if: matrix.target == 'x86_64-apple-darwin'

@@ -143,6 +143,8 @@ async function main() {
         "onnx",
         "--model",
         "Qwen/Qwen3-Embedding-0.6B",
+        "--opset",
+        "17",
         "--task",
         "feature-extraction",
         MODELS_DIR,
