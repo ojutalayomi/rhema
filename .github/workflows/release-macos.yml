@@ -129,6 +129,17 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Cache Whisper GGML model
+        uses: actions/cache@v4
+        id: whisper-model
+        with:
+          path: models/whisper/ggml-large-v3-turbo-q8_0.bin
+          key: whisper-ggml-large-v3-turbo-q8_0-bin
+
+      - name: Download Whisper model (bundled for local STT)
+        if: steps.whisper-model.outputs.cache-hit != 'true'
+        run: bun run download:whisper
+
       - name: Sync version from tag
         run: bun run scripts/set-version-from-tag.ts --tag "${{ github.ref_name }}"
 

@@ -97,9 +97,10 @@ This runs 7 phases in sequence, skipping any that are already complete:
 Rhema supports two speech-to-text engines:
 
 **Option 1: Whisper (Local, Free)**
-No setup required! Whisper runs locally on your machine with no API costs or internet dependency.
+Whisper runs locally with no API costs.
 - Requires CMake: `brew install cmake`
-- Model downloads automatically on first use
+- **Development:** run `bun run download:whisper` once (or use `bun run setup:all`) so `models/whisper/ggml-large-v3-turbo-q8_0.bin` exists.
+- **Production bundles:** `tauri build` runs `bun run download:whisper` before bundling; the GGML file is included in the app resources.
 
 **Option 2: Deepgram (Cloud, Paid)**
 Create a `.env` file in the project root:
@@ -142,6 +143,13 @@ bun run tauri dev
 ```bash
 bun run tauri build
 ```
+
+### Debugging packaged builds (logs)
+
+- **Log file:** On startup the backend logs `App log directory: …`. Rust `log::` output is written there as `rhema.log` (larger rotation budget than the plugin default). macOS typically uses `~/Library/Logs/<bundle-id>/`.
+- **Webview console:** The UI calls `attachConsole()` so you can open the webview inspector and see backend logs in production.
+- **Verbosity:** set `RHEMA_LOG_LEVEL=debug` (or `trace`, `info`, `warn`, `error`) when launching the app.
+- **`cargo check` / rust-analyzer:** Tauri validates bundled resources at compile time. If `models/whisper/ggml-large-v3-turbo-q8_0.bin` is missing, run `bun run download:whisper` once.
 
 ### GitHub Releases (macOS)
 

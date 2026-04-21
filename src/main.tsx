@@ -1,6 +1,7 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { invoke } from "@tauri-apps/api/core"
+import { attachConsole } from "@tauri-apps/plugin-log"
 
 import "./index.css"
 import App from "./App.tsx"
@@ -16,6 +17,8 @@ import { hydrateBroadcastThemes } from "@/stores/broadcast-store"
 // fail silently with "Transcription is already running". Reset the
 // backend to a clean state on boot, then hydrate persisted settings and
 // bible store so the UI reflects the user's choices immediately.
+// Mirror backend `log::` output to the webview console (open DevTools in packaged builds).
+void attachConsole().catch(() => {})
 invoke("stop_transcription")
   .catch(() => {})
   .then(() => Promise.all([hydrateSettings(), hydrateBibleStore(), hydrateBroadcastThemes()]))

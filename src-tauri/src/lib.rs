@@ -10,10 +10,45 @@ pub fn run() {
     // Load .env file — try src-tauri/.env first, then project root ../.env
     dotenvy::dotenv().ok();
     dotenvy::from_filename("../.env").ok();
+    let log_filter = std::env::var("RHEMA_LOG_LEVEL")
+        .ok()
+        .and_then(|s| {
+            let s = s.trim().to_lowercase();
+            match s.as_str() {
+                "trace" => Some(log::LevelFilter::Trace),
+                "debug" => Some(log::LevelFilter::Debug),
+                "info" => Some(log::LevelFilter::Info),
+                "warn" => Some(log::LevelFilter::Warn),
+                "error" => Some(log::LevelFilter::Error),
+                _ => None,
+            }
+        })
+        .unwrap_or(log::LevelFilter::Info);
+
+    let log_targets = {
+        use tauri_plugin_log::{Target, TargetKind};
+
+        // Always persist logs (packaged apps have no terminal). Also mirror to the webview
+        // when the frontend calls `attachConsole()` — open DevTools to see Rust `log::` output.
+        let mut targets = vec![
+            Target::new(TargetKind::LogDir {
+                file_name: Some("rhema".into()),
+            }),
+            Target::new(TargetKind::Webview),
+        ];
+        if cfg!(debug_assertions) {
+            targets.push(Target::new(TargetKind::Stdout));
+        }
+        targets
+    };
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
-                .level(tauri_plugin_log::log::LevelFilter::Info)
+                .targets(log_targets)
+                .level(log_filter)
+                // Default plugin cap was ~40 KiB — too small for STT / audio traces.
+                .max_file_size(10 * 1024 * 1024)
+                .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
                 .build(),
         )
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -65,6 +100,11 @@ pub fn run() {
         ])
         .setup(|app| {
             use tauri::Manager;
+
+            match app.path().app_log_dir() {
+                Ok(dir) => log::info!("App log directory: {}", dir.display()),
+                Err(e) => log::warn!("Could not resolve app log directory: {e}"),
+            }
 
             // Try resource dir first (production), then dev fallback
             let db_path = app
