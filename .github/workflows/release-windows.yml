@@ -70,4 +70,4 @@ jobs:
 
             **Note:** Windows builds are currently unsigned and may show SmartScreen warnings on first open.
           tauriScript: bun run tauri
-          args: --target x86_64-pc-windows-msvc --no-default-features --features whisper
+          args: --target x86_64-pc-windows-msvc -- --no-default-features
