@@ -1,0 +1,73 @@
+name: Release (Windows)
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish-tauri:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Download rhema.db data release
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download data-v1 `
+            --repo ojutalayomi/rhema `
+            --pattern "rhema.db" `
+            --output data/rhema.db
+
+      - name: Cache Whisper GGML model
+        uses: actions/cache@v4
+        id: whisper-model
+        with:
+          path: models/whisper/ggml-large-v3-turbo-q8_0.bin
+          key: whisper-ggml-large-v3-turbo-q8_0-bin
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Download Whisper model (bundled for local STT)
+        if: steps.whisper-model.outputs.cache-hit != 'true'
+        run: bun run download:whisper
+
+      - name: Sync version from tag
+        run: bun run scripts/set-version-from-tag.ts --tag "${{ github.ref_name }}"
+
+      - name: Build and upload to GitHub Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Rhema ${{ github.ref_name }}
+          releaseBody: |
+            See the assets below to download this version.
+
+            **Note:** Windows builds are currently unsigned and may show SmartScreen warnings on first open.
+          tauriScript: bun run tauri
+          args: --target x86_64-pc-windows-msvc --no-default-features --features whisper
