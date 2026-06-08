@@ -176,6 +176,36 @@ If publishing fails with a permissions error, ensure **Settings → Actions → 
 
 **Interactive release helper (optional):** [`scripts/release-macos.sh`](scripts/release-macos.sh) does not build locally. It prompts for the next version, syncs versions across the repo, commits the version bump, creates `vX.Y.Z`, and pushes the branch + tag so GitHub Actions can build and publish the release assets.
 
+### GitHub Releases (Windows)
+
+Official Windows installers are built in CI when you push a **version tag** (`v*`, e.g. `v0.2.0`):
+
+1. Create and push the tag from the commit you want to ship:
+
+   ```bash
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+2. The **Release (Windows)** workflow (`.github/workflows/release-windows.yml`) runs on `windows-latest`, syncs the app version from the tag into `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`, downloads bundled runtime assets (`data/rhema.db` and Whisper GGML model), then builds for **x86_64-pc-windows-msvc** with deterministic features (`--no-default-features --features whisper`) and uploads assets to the GitHub Release for that tag.
+
+Expected release artifacts:
+
+- `.msi` installer
+- `.exe` installer bundle
+
+To sync versions locally before a manual `bun run tauri build` (optional):
+
+```bash
+bun run version:sync -- --tag v0.2.0
+```
+
+**Unsigned builds:** CI artifacts are currently unsigned and may show Windows SmartScreen warnings on first launch.
+
+If publishing fails with a permissions error, ensure **Settings → Actions → General → Workflow permissions** allows **Read and write** for `GITHUB_TOKEN`.
+
+**Interactive release helper (optional):** [`scripts/release-windows.sh`](scripts/release-windows.sh) does not build locally. It prompts for the next version, syncs versions across the repo, commits the version bump, creates `vX.Y.Z`, and pushes the branch + tag so GitHub Actions can build and publish the Windows release assets.
+
 ## Project Structure
 
 ```
