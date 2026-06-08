@@ -1,14 +1,18 @@
 /**
  * Downloads the Whisper large-v3-turbo Q8_0 GGML model for local speech-to-text.
  *
- * Model: ggml-large-v3-turbo-q8_0.bin (~394MB)
+ * Model: ggml-large-v3-turbo-q8_0.bin (~874MB)
  * Source: https://huggingface.co/ggerganov/whisper.cpp
  *
  * Run: bun run download:whisper
+ *
+ * Uses `curl` for the actual transfer because it streams directly to disk,
+ * resumes interrupted downloads with `-C -`, and retries transient failures —
+ * which avoids the in-process buffering issues that crash large fetch() calls.
  */
 
 import { join } from "node:path"
-import { existsSync, mkdirSync, createWriteStream } from "node:fs"
+import { existsSync, mkdirSync, renameSync } from "node:fs"
 
 const PROJECT_ROOT = join(import.meta.dir, "..")
 const MODELS_DIR = join(PROJECT_ROOT, "models", "whisper")
@@ -24,48 +28,34 @@ async function main() {
 
   mkdirSync(MODELS_DIR, { recursive: true })
 
+  const tmpPath = MODEL_PATH + ".tmp"
+
   console.log(`Downloading Whisper model from ${MODEL_URL}`)
   console.log(`Destination: ${MODEL_PATH}`)
 
-  const response = await fetch(MODEL_URL, { redirect: "follow" })
-  if (!response.ok) {
-    throw new Error(`Download failed: ${response.status} ${response.statusText}`)
-  }
+  const args = [
+    "--location",
+    "--fail",
+    "--retry", "10",
+    "--retry-delay", "2",
+    "--retry-connrefused",
+    "--continue-at", "-",
+    "--progress-bar",
+    "--output", tmpPath,
+    MODEL_URL,
+  ]
 
-  const totalBytes = Number(response.headers.get("content-length") ?? 0)
-  const totalMB = (totalBytes / 1_000_000).toFixed(0)
-  console.log(`Size: ${totalMB} MB`)
-
-  const writer = createWriteStream(MODEL_PATH + ".tmp")
-  const reader = response.body?.getReader()
-  if (!reader) throw new Error("No response body")
-
-  let downloaded = 0
-  let lastPercent = -1
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    writer.write(Buffer.from(value))
-    downloaded += value.byteLength
-
-    const percent = totalBytes > 0 ? Math.floor((downloaded / totalBytes) * 100) : 0
-    if (percent !== lastPercent && percent % 5 === 0) {
-      process.stdout.write(`\r  ${percent}% (${(downloaded / 1_000_000).toFixed(0)}/${totalMB} MB)`)
-      lastPercent = percent
-    }
-  }
-
-  writer.end()
-  await new Promise<void>((resolve, reject) => {
-    writer.on("finish", resolve)
-    writer.on("error", reject)
+  const proc = Bun.spawn(["curl", ...args], {
+    stdout: "inherit",
+    stderr: "inherit",
   })
 
-  // Atomic rename
-  const { renameSync } = await import("node:fs")
-  renameSync(MODEL_PATH + ".tmp", MODEL_PATH)
+  const code = await proc.exited
+  if (code !== 0) {
+    throw new Error(`curl exited with code ${code}`)
+  }
 
+  renameSync(tmpPath, MODEL_PATH)
   console.log(`\nWhisper model downloaded: ${MODEL_PATH}`)
 }
 
