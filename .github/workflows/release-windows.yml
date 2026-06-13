@@ -52,6 +52,7 @@ jobs:
             --output data/rhema.db
 
       - name: Cache Whisper GGML model
+        if: matrix.onyx == true
         uses: actions/cache@v4
         id: whisper-model
         with:
@@ -62,11 +63,23 @@ jobs:
         run: bun install
 
       - name: Download Whisper model (bundled for local STT)
-        if: steps.whisper-model.outputs.cache-hit != 'true'
+        if: matrix.onyx == true && steps.whisper-model.outputs.cache-hit != 'true'
         run: bun run download:whisper
 
       - name: Sync version from tag
         run: bun run scripts/set-version-from-tag.ts --tag "${{ github.ref_name }}"
+
+      - name: Use dynamic CRT for onyx build (matches prebuilt ORT Runtime library)
+        # The prebuilt ONNX Runtime binaries downloaded by ort-sys are compiled with
+        # /MD (MD_DynamicRelease). Other native deps (esaxx-rs, etc.) default to /MT
+        # (MT_StaticRelease). MSVC refuses to link the two — LNK2038. Switching the
+        # whole build to -crt-static=false (/MD) resolves the mismatch.
+        # The cc crate reads CARGO_ENCODED_RUSTFLAGS (derived from RUSTFLAGS) to pick
+        # /MT vs /MD for C/C++ build scripts, so one flag covers both Rust and C code.
+        if: matrix.onyx == true
+        shell: pwsh
+        run: |
+          echo "RUSTFLAGS=-C target-feature=-crt-static" >> $env:GITHUB_ENV
 
       - name: Set product name for onyx variant
         if: matrix.onyx == true
@@ -74,6 +87,19 @@ jobs:
         run: |
           $conf = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
           $conf.productName = "Rhema-onyx"
+          $conf | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json
+
+      - name: Strip bundled models and model-download from non-onyx build
+        # Non-onyx builds compile with --no-default-features (no whisper, no onnx).
+        # Remove the whisper model from bundle.resources so tauri does not try to
+        # bundle a file that was never downloaded, and strip the download prefix from
+        # beforeBuildCommand so it does not trigger a 874 MB download mid-build.
+        if: matrix.onyx == false
+        shell: pwsh
+        run: |
+          $conf = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $conf.bundle.resources = [PSCustomObject]@{ "../data/rhema.db" = "rhema.db" }
+          $conf.build.beforeBuildCommand = "bun run build"
           $conf | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json
 
       - name: Build and upload to GitHub Release

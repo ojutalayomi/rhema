@@ -24,7 +24,7 @@ jobs:
           # ── Apple Silicon (arm64) ──────────────────────────────────────────
           - platform: macos-latest
             target: aarch64-apple-darwin
-            args: "--target aarch64-apple-darwin"
+            args: "--target aarch64-apple-darwin --no-default-features"
             macos_deployment_target: "11.0"
             onyx: false
 
@@ -37,7 +37,7 @@ jobs:
           # ── Intel (x86_64) ────────────────────────────────────────────────
           - platform: macos-15-intel
             target: x86_64-apple-darwin
-            args: "--target x86_64-apple-darwin"
+            args: "--target x86_64-apple-darwin --no-default-features"
             macos_deployment_target: "10.15"
             onyx: false
 
@@ -91,6 +91,18 @@ jobs:
       - name: Set macOS deployment target
         run: echo "MACOSX_DEPLOYMENT_TARGET=${{ matrix.macos_deployment_target }}" >> $GITHUB_ENV
 
+      - name: Cap SDK MAX_ALLOWED version for arm64 (suppresses ggml Metal residency-set symbols)
+        # ggml-metal-device.m defines GGML_METAL_HAS_RESIDENCY_SETS when
+        # __MAC_OS_X_VERSION_MAX_ALLOWED >= 150000, which is the macOS 15 SDK default
+        # even for older deployment targets. The @available(macOS 15, *) guards that
+        # result emit ___isPlatformVersionAtLeast — a clang-rt symbol unavailable in
+        # Rust's -nodefaultlibs link context. Capping MAX_ALLOWED to 14.1 removes the
+        # guarded code entirely without affecting the deployment-target minimum.
+        if: matrix.target == 'aarch64-apple-darwin'
+        run: |
+          echo "CFLAGS=-DMAC_OS_X_VERSION_MAX_ALLOWED=140100" >> $GITHUB_ENV
+          echo "CXXFLAGS=-DMAC_OS_X_VERSION_MAX_ALLOWED=140100" >> $GITHUB_ENV
+
       - name: Force deployment target in Cargo config (overrides Cargo's automatic value)
         # Cargo overrides MACOSX_DEPLOYMENT_TARGET for build scripts from the Rust target
         # spec, so $GITHUB_ENV alone is insufficient. The [env] table with force=true in
@@ -138,6 +150,19 @@ jobs:
             src-tauri/tauri.conf.json > /tmp/tauri.conf.json.tmp
           mv /tmp/tauri.conf.json.tmp src-tauri/tauri.conf.json
 
+      - name: Strip bundled models and model-download from non-onyx build
+        # Non-onyx builds compile with --no-default-features (no whisper, no onnx).
+        # Remove the whisper model from bundle.resources so tauri does not try to
+        # bundle a file that was never downloaded, and strip the `bun run download:whisper`
+        # prefix from beforeBuildCommand so it does not trigger a 874 MB download.
+        if: matrix.onyx == false
+        run: |
+          jq '
+            .bundle.resources = {"../data/rhema.db": "rhema.db"} |
+            .build.beforeBuildCommand = "bun run build"
+          ' src-tauri/tauri.conf.json > /tmp/tauri.conf.json.tmp
+          mv /tmp/tauri.conf.json.tmp src-tauri/tauri.conf.json
+
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
@@ -156,6 +181,7 @@ jobs:
         run: bun install
 
       - name: Cache Whisper GGML model
+        if: matrix.onyx == true
         uses: actions/cache@v4
         id: whisper-model
         with:
@@ -163,7 +189,7 @@ jobs:
           key: whisper-ggml-large-v3-turbo-q8_0-bin
 
       - name: Download Whisper model (bundled for local STT)
-        if: steps.whisper-model.outputs.cache-hit != 'true'
+        if: matrix.onyx == true && steps.whisper-model.outputs.cache-hit != 'true'
         run: bun run download:whisper
 
       - name: Sync version from tag
