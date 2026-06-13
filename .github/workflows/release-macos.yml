@@ -1,5 +1,9 @@
 # Build Rhema (Tauri) for macOS arm64 + x86_64 and publish assets to the GitHub Release
 # for the pushed tag (e.g. v0.2.0). Tag is the source of truth; versions are synced in CI.
+#
+# Two variants are produced per architecture:
+#   • Rhema        – without the Onyx (ONNX) model  →  smaller download, cloud inference only
+#   • Rhema-onyx   – with the Onyx (ONNX) model bundled  →  larger download, local inference
 
 name: Release (macOS)
 
@@ -17,16 +21,31 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # ── Apple Silicon (arm64) ──────────────────────────────────────────
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            args: "--target aarch64-apple-darwin"
+            macos_deployment_target: "11.0"
+            onyx: false
+
           - platform: macos-latest
             target: aarch64-apple-darwin
             args: "--target aarch64-apple-darwin --features onnx"
-            # Apple Silicon requires macOS 11.0+; std::filesystem (used by
-            # whisper.cpp) is unavailable below 10.15, so 11.0 is the right floor.
             macos_deployment_target: "11.0"
+            onyx: true
+
+          # ── Intel (x86_64) ────────────────────────────────────────────────
+          - platform: macos-15-intel
+            target: x86_64-apple-darwin
+            args: "--target x86_64-apple-darwin"
+            macos_deployment_target: "10.15"
+            onyx: false
+
           - platform: macos-15-intel
             target: x86_64-apple-darwin
             args: "--target x86_64-apple-darwin --features onnx"
             macos_deployment_target: "10.15"
+            onyx: true
 
     runs-on: ${{ matrix.platform }}
 
@@ -40,13 +59,13 @@ jobs:
           bun-version: latest
 
       - name: Setup Python for Intel ONNX Runtime build
-        if: matrix.target == 'x86_64-apple-darwin'
+        if: matrix.target == 'x86_64-apple-darwin' && matrix.onyx == true
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
       - name: Download prebuilt ONNX Runtime (Intel) from release asset
-        if: matrix.target == 'x86_64-apple-darwin'
+        if: matrix.target == 'x86_64-apple-darwin' && matrix.onyx == true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -90,7 +109,7 @@ jobs:
           fi
 
       - name: Fix ONNX Runtime dylib install name for bundling
-        if: matrix.target == 'x86_64-apple-darwin'
+        if: matrix.target == 'x86_64-apple-darwin' && matrix.onyx == true
         run: |
           DYLIB="${{ github.workspace }}/onnxruntime/build/macOS_x86_64/Release/libonnxruntime.dylib"
           if [ -f "$DYLIB" ]; then
@@ -98,17 +117,24 @@ jobs:
           fi
 
       - name: Export ORT_LIB_PATH for Intel build
-        if: matrix.target == 'x86_64-apple-darwin'
+        if: matrix.target == 'x86_64-apple-darwin' && matrix.onyx == true
         run: |
           echo "ORT_LIB_PATH=${{ github.workspace }}/onnxruntime/build/macOS_x86_64/Release" >> $GITHUB_ENV
           echo "ORT_PREFER_DYNAMIC_LINK=1" >> $GITHUB_ENV
 
-      - name: Patch tauri.conf.json to bundle libonnxruntime.dylib (Intel only)
-        if: matrix.target == 'x86_64-apple-darwin'
+      - name: Patch tauri.conf.json to bundle libonnxruntime.dylib (Intel + onyx only)
+        if: matrix.target == 'x86_64-apple-darwin' && matrix.onyx == true
         run: |
           DYLIB="${{ github.workspace }}/onnxruntime/build/macOS_x86_64/Release/libonnxruntime.dylib"
           jq --arg dylib "$DYLIB" \
             '.bundle.macOS.frameworks = (.bundle.macOS.frameworks // []) + [$dylib]' \
+            src-tauri/tauri.conf.json > /tmp/tauri.conf.json.tmp
+          mv /tmp/tauri.conf.json.tmp src-tauri/tauri.conf.json
+
+      - name: Set product name for onyx variant
+        if: matrix.onyx == true
+        run: |
+          jq '.productName = "Rhema-onyx"' \
             src-tauri/tauri.conf.json > /tmp/tauri.conf.json.tmp
           mv /tmp/tauri.conf.json.tmp src-tauri/tauri.conf.json
 
@@ -152,6 +178,10 @@ jobs:
           releaseName: Rhema ${{ github.ref_name }}
           releaseBody: |
             See the assets below to download this version.
+
+            Two variants are available per platform:
+            - **Rhema** – without the Onyx model (smaller download, cloud inference)
+            - **Rhema-onyx** – with the Onyx model bundled (larger download, local inference)
 
             **Note:** macOS builds are currently **unsigned**. Gatekeeper may show a warning on first open.
           tauriScript: bun run tauri

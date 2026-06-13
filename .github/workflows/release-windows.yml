@@ -10,6 +10,16 @@ permissions:
 
 jobs:
   publish-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - onyx: false
+            args: "--target x86_64-pc-windows-msvc -- --no-default-features"
+
+          - onyx: true
+            args: "--target x86_64-pc-windows-msvc -- --no-default-features --features onnx"
+
     runs-on: windows-latest
 
     steps:
@@ -58,6 +68,14 @@ jobs:
       - name: Sync version from tag
         run: bun run scripts/set-version-from-tag.ts --tag "${{ github.ref_name }}"
 
+      - name: Set product name for onyx variant
+        if: matrix.onyx == true
+        shell: pwsh
+        run: |
+          $conf = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $conf.productName = "Rhema-onyx"
+          $conf | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json
+
       - name: Build and upload to GitHub Release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -68,6 +86,10 @@ jobs:
           releaseBody: |
             See the assets below to download this version.
 
+            Two variants are available per platform:
+            - **Rhema** – without the Onyx model (smaller download, cloud inference)
+            - **Rhema-onyx** – with the Onyx model bundled (larger download, local inference)
+
             **Note:** Windows builds are currently unsigned and may show SmartScreen warnings on first open.
           tauriScript: bun run tauri
-          args: --target x86_64-pc-windows-msvc -- --no-default-features
+          args: ${{ matrix.args }}
